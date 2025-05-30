@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Draw a Noggin</title>
+  <style>
+    body {
+      background-color: black;
+      color: white;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 10px;
+    }
+    .toolbar {
+      margin: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    canvas {
+      border: 2px solid white;
+      touch-action: none;
+      background-color: black;
+    }
+    button, input[type="color"], input[type="range"], input[type="text"] {
+      padding: 5px;
+      border-radius: 5px;
+    }
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-top: 10px;
+      width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 Draw a Noggin</h1>
+  <div class="toolbar">
+    <input type="color" id="colorPicker" value="#ffffff" />
+    <input type="range" id="brushSize" min="1" max="30" value="5" />
+    <button onclick="setTool('brush')">Brush</button>
+    <button onclick="setTool('eraser')">Eraser</button>
+    <button onclick="undo()">Undo</button>
+    <button onclick="redo()">Redo</button>
+  </div>
+  <canvas id="canvas" width="500" height="500"></canvas>
+  <div class="form">
+    <input type="text" id="title" placeholder="Title your drawing" />
+    <input type="text" id="description" placeholder="Add a short description" />
+    <button onclick="saveImage()">Save PNG</button>
+    <button onclick="mint()">Mint on XRP.cafe</button>
+  </div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let painting = false;
+    let brushColor = document.getElementById('colorPicker').value;
+    let brushSize = document.getElementById('brushSize').value;
+    let tool = 'brush';
+    const undoStack = [];
+    const redoStack = [];
+    const backgroundImage = new Image();
+    backgroundImage.crossOrigin = "anonymous";
+    backgroundImage.src = 'https://i.ibb.co/zHmdKsGx/black-dood.png';
+
+    backgroundImage.onload = () => {
+      ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+    };
+
+    function getMousePos(canvas, evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (evt.clientX || evt.touches[0].clientX) - rect.left,
+        y: (evt.clientY || evt.touches[0].clientY) - rect.top
+      };
+    }
+
+    function startPosition(e) {
+      e.preventDefault();
+      painting = true;
+      draw(e);
+    }
+
+    function finishedPosition(e) {
+      e.preventDefault();
+      painting = false;
+      ctx.beginPath();
+      saveState();
+    }
+
+    function draw(e) {
+      if (!painting) return;
+      e.preventDefault();
+      const pos = getMousePos(canvas, e);
+      ctx.lineWidth = brushSize;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = tool === 'eraser' ? 'white' : brushColor;
+
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+
+    function saveState() {
+      undoStack.push(canvas.toDataURL());
+      redoStack.length = 0;
+    }
+
+    function undo() {
+      if (undoStack.length === 0) return;
+      redoStack.push(canvas.toDataURL());
+      const lastState = undoStack.pop();
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0);
+      img.src = lastState;
+    }
+
+    function redo() {
+      if (redoStack.length === 0) return;
+      undoStack.push(canvas.toDataURL());
+      const nextState = redoStack.pop();
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0);
+      img.src = nextState;
+    }
+
+    function setTool(selectedTool) {
+      tool = selectedTool;
+    }
+
+    function saveImage() {
+      const title = document.getElementById('title').value || 'myNoggin';
+      const link = document.createElement('a');
+      link.download = title.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.png';
+
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = canvas.width;
+      exportCanvas.height = canvas.height;
+      const exportCtx = exportCanvas.getContext('2d');
+
+      const exportBackground = new Image();
+      exportBackground.crossOrigin = "anonymous";
+      exportBackground.src = backgroundImage.src;
+
+      exportBackground.onload = () => {
+        exportCtx.drawImage(exportBackground, 0, 0, canvas.width, canvas.height);
+        exportCtx.drawImage(canvas, 0, 0);
+        link.href = exportCanvas.toDataURL('image/png');
+        link.click();
+      }
+    }
+
+    function mint() {
+      try {
+        const imageData = canvas.toDataURL('image/png');
+        const encoded = encodeURIComponent(imageData);
+        const xummMintUrl = `https://xumm.app/detect/xapp:xrpcafe?mintImage=${encoded}`;
+        window.open(xummMintUrl, '_blank');
+      } catch (err) {
+        alert("Minting failed due to security restriction on the canvas image. Please make sure all images allow cross-origin access.");
+      }
+    }
+
+    canvas.addEventListener('mousedown', startPosition);
+    canvas.addEventListener('mouseup', finishedPosition);
+    canvas.addEventListener('mousemove', draw);
+
+    canvas.addEventListener('touchstart', startPosition, { passive: false });
+    canvas.addEventListener('touchend', finishedPosition, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+
+    document.getElementById('colorPicker').addEventListener('input', (e) => brushColor = e.target.value);
+    document.getElementById('brushSize').addEventListener('input', (e) => brushSize = e.target.value);
+  </script>
+</body>
+</html>
